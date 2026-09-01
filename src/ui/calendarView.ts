@@ -11,6 +11,9 @@ export class CalendarView extends ItemView {
 	private currentYear: number;
 	private currentMonth: number; // 0-indexed (0 = Jan, 11 = Dec)
 	private popoverEl: HTMLElement | null = null;
+	private selectedDate: string | null = null;
+	private sidePanelEl: HTMLElement | null = null;
+	private daysGridEl: HTMLElement | null = null;
 
 	constructor(leaf: WorkspaceLeaf, settings: MonthlyAgendaSettings) {
 		super(leaf);
@@ -108,11 +111,16 @@ export class CalendarView extends ItemView {
 			void this.refresh();
 		});
 
-		// 2. Grid container
-		const gridContainer = container.createDiv({ cls: 'calendar-grid' });
+		// 2. Calendar Body (Grid + Side Panel)
+		const bodyContainer = container.createDiv({ cls: 'calendar-body' });
+
+		// 2a. Grid wrapper (Left side)
+		const gridWrapper = bodyContainer.createDiv({
+			cls: 'calendar-grid-wrapper',
+		});
 
 		// Weekday labels (Mon - Sun)
-		const weekdayRow = gridContainer.createDiv({
+		const weekdayRow = gridWrapper.createDiv({
 			cls: 'calendar-weekday-row',
 		});
 		WEEKDAY_NAMES.forEach((day) => {
@@ -120,7 +128,12 @@ export class CalendarView extends ItemView {
 		});
 
 		// Days grid
-		const daysGrid = gridContainer.createDiv({ cls: 'calendar-days-grid' });
+		this.daysGridEl = gridWrapper.createDiv({ cls: 'calendar-days-grid' });
+
+		// 2b. Side Panel container (Right side)
+		this.sidePanelEl = bodyContainer.createDiv({
+			cls: 'calendar-events-panel',
+		});
 
 		// Calculation for month grid
 		const firstDayOfMonth = new Date(
@@ -148,7 +161,7 @@ export class CalendarView extends ItemView {
 		).getDate();
 		for (let i = startDayOffset - 1; i >= 0; i--) {
 			const dayNum = prevMonthLastDay - i;
-			daysGrid.createDiv({
+			this.daysGridEl.createDiv({
 				cls: 'calendar-day-cell other-month',
 				text: dayNum.toString(),
 			});
@@ -162,10 +175,12 @@ export class CalendarView extends ItemView {
 		for (let day = 1; day <= totalDays; day++) {
 			const dateStr = `${this.currentYear}-${String(this.currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 			const isToday = dateStr === todayStr;
+			const isSelected = dateStr === this.selectedDate;
 
-			const dayCell = daysGrid.createDiv({
-				cls: `calendar-day-cell current-month${isToday ? ' is-today' : ''}`,
+			const dayCell = this.daysGridEl.createDiv({
+				cls: `calendar-day-cell current-month${isToday ? ' is-today' : ''}${isSelected ? ' is-selected' : ''}`,
 			});
+			dayCell.dataset.date = dateStr;
 
 			dayCell.createDiv({
 				cls: 'calendar-day-number',
@@ -179,33 +194,209 @@ export class CalendarView extends ItemView {
 				this.settings,
 			);
 
+			const eventsContainer = dayCell.createDiv({
+				cls: 'calendar-day-events-container',
+			});
+
 			if (events.length > 0) {
-				const badge = dayCell.createDiv({
-					cls: 'calendar-event-badge',
+				const maxVisible = 5;
+				const visibleEvents = events.slice(0, maxVisible);
+				const overflowCount = events.length - maxVisible;
+
+				visibleEvents.forEach((evt) => {
+					const pill = eventsContainer.createDiv({
+						cls: 'calendar-day-event-pill',
+					});
+					if (evt.startTime) {
+						pill.createSpan({
+							cls: 'calendar-day-event-time',
+							text: evt.startTime,
+						});
+					}
+					pill.createSpan({
+						cls: 'calendar-day-event-title',
+						text: evt.title,
+					});
 				});
-				badge.createSpan({
-					cls: 'calendar-event-count',
-					text: `${events.length} ${events.length === 1 ? 'event' : 'events'}`,
+
+				if (overflowCount > 0) {
+					eventsContainer.createDiv({
+						cls: 'calendar-day-more-events',
+						text: `+${overflowCount} ${overflowCount === 1 ? 'event' : 'events'}`,
+					});
+
+					// Add hover popover preview ONLY when overflow occurs
+					dayCell.addEventListener('mouseenter', (evt) => {
+						const hoverEvents = events.slice(maxVisible);
+						this.showHoverPopover(evt, dateStr, hoverEvents);
+					});
+
+					dayCell.addEventListener('mouseleave', () => {
+						this.hideHoverPopover();
+					});
+				}
+			} else {
+				eventsContainer.createDiv({
+					cls: 'calendar-day-no-events',
+					text: 'No events scheduled',
 				});
 			}
 
-			// Add hover state (popover preview)
-			dayCell.addEventListener('mouseenter', (evt) => {
-				this.showHoverPopover(evt, dateStr, events);
-			});
-
-			dayCell.addEventListener('mouseleave', () => {
-				this.hideHoverPopover();
-			});
-
-			// Add click interaction (Open Add Event Modal)
+			// Add click interaction (Select date and update side panel)
 			dayCell.addEventListener('click', () => {
 				this.hideHoverPopover();
-				new AddEventModal(this.app, dateStr, this.settings, () => {
-					void this.refresh();
-				}).open();
+				this.selectDate(dateStr);
 			});
 		}
+
+		// Render the side panel state
+		await this.renderSidePanel();
+	}
+
+	private selectDate(dateStr: string): void {
+		this.selectedDate = dateStr;
+
+		// Update grid cell highlights
+		if (this.daysGridEl) {
+			const cells = this.daysGridEl.querySelectorAll(
+				'.calendar-day-cell.current-month',
+			);
+			cells.forEach((cell) => {
+				const htmlCell = cell as HTMLElement;
+				if (htmlCell.dataset.date === dateStr) {
+					htmlCell.addClass('is-selected');
+				} else {
+					htmlCell.removeClass('is-selected');
+				}
+			});
+		}
+
+		void this.renderSidePanel();
+	}
+
+	private async renderSidePanel(): Promise<void> {
+		if (!this.sidePanelEl) return;
+		this.sidePanelEl.empty();
+
+		if (!this.selectedDate) {
+			this.sidePanelEl.addClass('is-hidden');
+			return;
+		}
+
+		this.sidePanelEl.removeClass('is-hidden');
+
+		// 1. Panel Header
+		const headerEl = this.sidePanelEl.createDiv({ cls: 'panel-header' });
+
+		const formattedDate = this.formatDateHeader(this.selectedDate);
+		headerEl.createEl('h4', {
+			cls: 'panel-date-title',
+			text: formattedDate,
+		});
+
+		const closeBtn = headerEl.createEl('button', {
+			cls: 'panel-close-btn',
+			title: 'Close panel',
+		});
+		setIcon(closeBtn, 'x');
+		closeBtn.addEventListener('click', () => {
+			this.selectedDate = null;
+			if (this.daysGridEl) {
+				const cells = this.daysGridEl.querySelectorAll(
+					'.calendar-day-cell.current-month',
+				);
+				cells.forEach((cell) => cell.removeClass('is-selected'));
+			}
+			void this.renderSidePanel();
+		});
+
+		// 2. Action Bar (Create Event Button on top)
+		const actionContainer = this.sidePanelEl.createDiv({
+			cls: 'panel-actions',
+		});
+		const createBtn = actionContainer.createEl('button', {
+			cls: 'calendar-panel-create-btn',
+		});
+		setIcon(createBtn.createSpan({ cls: 'btn-icon' }), 'plus');
+		createBtn.createSpan({ text: 'Create Event' });
+
+		const currentSelectedDate = this.selectedDate;
+		createBtn.addEventListener('click', () => {
+			if (!currentSelectedDate) return;
+			new AddEventModal(
+				this.app,
+				currentSelectedDate,
+				this.settings,
+				() => {
+					void this.refresh();
+				},
+			).open();
+		});
+
+		// 3. Events List Section
+		const eventsListContainer = this.sidePanelEl.createDiv({
+			cls: 'panel-events-container',
+		});
+
+		const events = await getEventsForDate(
+			this.app,
+			this.selectedDate,
+			this.settings,
+		);
+
+		if (events.length === 0) {
+			const emptyEl = eventsListContainer.createDiv({
+				cls: 'panel-empty-state',
+			});
+			setIcon(emptyEl.createDiv({ cls: 'empty-icon' }), 'calendar-x');
+			emptyEl.createDiv({
+				cls: 'empty-text',
+				text: 'No events scheduled for this day.',
+			});
+			emptyEl.createDiv({
+				cls: 'empty-hint',
+				text: 'Click "Create Event" above to add one.',
+			});
+		} else {
+			const list = eventsListContainer.createDiv({
+				cls: 'panel-events-list',
+			});
+			events.forEach((item) => {
+				const itemEl = list.createDiv({ cls: 'panel-event-item' });
+
+				const timeEl = itemEl.createDiv({ cls: 'panel-event-time' });
+				setIcon(timeEl.createSpan({ cls: 'time-icon' }), 'clock');
+				timeEl.createSpan({
+					text: `${item.startTime} - ${item.endTime}`,
+				});
+
+				itemEl.createDiv({
+					cls: 'panel-event-title',
+					text: item.title,
+				});
+
+				if (item.description) {
+					itemEl.createDiv({
+						cls: 'panel-event-desc',
+						text: item.description,
+					});
+				}
+			});
+		}
+	}
+
+	private formatDateHeader(dateStr: string): string {
+		const parts = dateStr.split('-');
+		const year = parts[0] ? parseInt(parts[0], 10) : 1970;
+		const month = parts[1] ? parseInt(parts[1], 10) - 1 : 0;
+		const day = parts[2] ? parseInt(parts[2], 10) : 1;
+		const dateObj = new Date(year, month, day);
+
+		const dayOfWeekIndex = (dateObj.getDay() + 6) % 7; // Mon = 0 ... Sun = 6
+		const dayName = WEEKDAY_NAMES[dayOfWeekIndex] ?? '';
+		const monthName = MONTH_NAMES[month] ?? '';
+
+		return `${dayName}, ${monthName} ${day}, ${year}`;
 	}
 
 	private async changeMonth(delta: number): Promise<void> {
@@ -230,34 +421,27 @@ export class CalendarView extends ItemView {
 		this.popoverEl.empty();
 		this.popoverEl.createDiv({ cls: 'popover-header', text: dateStr });
 
-		if (events.length === 0) {
-			this.popoverEl.createDiv({
-				cls: 'popover-empty',
-				text: 'No events scheduled. Click to add.',
+		const list = this.popoverEl.createDiv({
+			cls: 'popover-events-list',
+		});
+		events.forEach((item) => {
+			const itemEl = list.createDiv({ cls: 'popover-event-item' });
+			itemEl.createSpan({
+				cls: 'popover-event-time',
+				text: `${item.startTime} - ${item.endTime}`,
 			});
-		} else {
-			const list = this.popoverEl.createDiv({
-				cls: 'popover-events-list',
+			itemEl.createSpan({
+				cls: 'popover-event-title',
+				text: item.title,
 			});
-			events.forEach((item) => {
-				const itemEl = list.createDiv({ cls: 'popover-event-item' });
-				itemEl.createSpan({
-					cls: 'popover-event-time',
-					text: `${item.startTime} - ${item.endTime}`,
-				});
-				itemEl.createSpan({
-					cls: 'popover-event-title',
-					text: item.title,
-				});
 
-				if (item.description) {
-					itemEl.createDiv({
-						cls: 'popover-event-desc',
-						text: item.description,
-					});
-				}
-			});
-		}
+			if (item.description) {
+				itemEl.createDiv({
+					cls: 'popover-event-desc',
+					text: item.description,
+				});
+			}
+		});
 
 		// Position popover relative to mouse target cell
 		const targetCell = evt.currentTarget as HTMLElement;
