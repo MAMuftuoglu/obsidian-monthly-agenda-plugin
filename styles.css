@@ -1,8 +1,209 @@
-/*
+/* Obsidian Monthly Agenda & Calendar Plugin Styles */
 
-This CSS file will be included with your plugin, and
-available in the app when your plugin is enabled.
+.calendar-view-container {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	padding: 12px;
+	box-sizing: border-box;
+	overflow-y: auto;
+	color: var(--text-normal);
+}
 
-If your plugin does not need CSS, delete this file.
+/* Header & Navigation */
+.calendar-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 16px;
+	gap: 12px;
+}
 
-*/
+.calendar-title {
+	margin: 0;
+	font-size: 1.25rem;
+	font-weight: 600;
+	color: var(--text-normal);
+	flex-grow: 1;
+	text-align: center;
+}
+
+.calendar-nav-btn,
+.calendar-refresh-btn {
+	background: transparent;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s, 4px);
+	padding: 4px 8px;
+	cursor: pointer;
+	color: var(--text-muted);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.calendar-nav-btn:hover,
+.calendar-refresh-btn:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.calendar-today-btn {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent, #ffffff);
+	border: none;
+	border-radius: var(--radius-s, 4px);
+	padding: 4px 12px;
+	font-size: 0.85rem;
+	font-weight: 500;
+	cursor: pointer;
+}
+
+.calendar-today-btn:hover {
+	background: var(--interactive-accent-hover);
+}
+
+/* Calendar Grid */
+.calendar-grid {
+	display: flex;
+	flex-direction: column;
+	flex-grow: 1;
+	gap: 8px;
+}
+
+.calendar-weekday-row {
+	display: grid;
+	grid-template-columns: repeat(7, 1fr);
+	text-align: center;
+	font-weight: 600;
+	font-size: 0.85rem;
+	color: var(--text-muted);
+	padding-bottom: 4px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.calendar-weekday-header {
+	padding: 4px 0;
+}
+
+.calendar-days-grid {
+	display: grid;
+	grid-template-columns: repeat(7, 1fr);
+	gap: 6px;
+	flex-grow: 1;
+}
+
+.calendar-day-cell {
+	min-height: 70px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m, 6px);
+	background: var(--background-primary);
+	padding: 6px;
+	display: flex;
+	flex-direction: column;
+	justify-content: space-between;
+	cursor: pointer;
+	transition: background-color 0.15s ease, border-color 0.15s ease;
+	position: relative;
+}
+
+.calendar-day-cell:hover {
+	background: var(--background-modifier-hover);
+	border-color: var(--interactive-accent);
+}
+
+.calendar-day-cell.other-month {
+	opacity: 0.35;
+	background: var(--background-secondary-alt);
+	cursor: default;
+}
+
+.calendar-day-cell.is-today {
+	border: 2px solid var(--interactive-accent);
+	background: var(--background-secondary);
+}
+
+.calendar-day-number {
+	font-weight: 600;
+	font-size: 0.9rem;
+	color: var(--text-normal);
+}
+
+.calendar-event-badge {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent, #ffffff);
+	border-radius: 10px;
+	padding: 2px 6px;
+	font-size: 0.72rem;
+	font-weight: 500;
+	align-self: flex-start;
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* Hover Popover Tooltip */
+.calendar-day-popover {
+	position: fixed;
+	z-index: 1000;
+	width: 240px;
+	max-width: 90vw;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m, 8px);
+	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+	padding: 10px 12px;
+	font-size: 0.85rem;
+	pointer-events: none;
+	display: block;
+}
+
+.calendar-day-popover.is-hidden {
+	display: none;
+}
+
+.popover-header {
+	font-weight: 600;
+	font-size: 0.9rem;
+	border-bottom: 1px solid var(--background-modifier-border);
+	padding-bottom: 6px;
+	margin-bottom: 8px;
+	color: var(--interactive-accent);
+}
+
+.popover-empty {
+	color: var(--text-muted);
+	font-style: italic;
+}
+
+.popover-events-list {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.popover-event-item {
+	display: flex;
+	flex-direction: column;
+	padding: 4px 6px;
+	background: var(--background-primary);
+	border-radius: var(--radius-s, 4px);
+	border-left: 3px solid var(--interactive-accent);
+}
+
+.popover-event-time {
+	font-size: 0.75rem;
+	font-weight: 600;
+	color: var(--text-muted);
+}
+
+.popover-event-title {
+	font-weight: 600;
+	color: var(--text-normal);
+}
+
+.popover-event-desc {
+	font-size: 0.78rem;
+	color: var(--text-muted);
+	margin-top: 2px;
+}

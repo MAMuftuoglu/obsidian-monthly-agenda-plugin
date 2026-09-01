@@ -1,7 +1,7 @@
 {
-	"name": "obsidian-sample-plugin",
+	"name": "obsidian-monthly-agenda",
 	"version": "1.0.0",
-	"description": "This is a sample plugin for Obsidian (https://obsidian.md)",
+	"description": "Monthly calendar view plugin for Obsidian daily notes agenda.",
 	"main": "main.js",
 	"type": "module",
 	"scripts": {

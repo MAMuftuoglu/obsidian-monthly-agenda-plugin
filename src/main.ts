@@ -1,114 +1,79 @@
-import {
-	Editor,
-	MarkdownView,
-	MarkdownFileInfo,
-	Modal,
-	Notice,
-	Plugin,
-} from 'obsidian';
-import {
-	DEFAULT_SETTINGS,
-	MyPluginSettings,
-	SampleSettingTab,
-} from './settings';
+import { Plugin, WorkspaceLeaf } from 'obsidian';
+import { DEFAULT_SETTINGS, MonthlyAgendaSettings } from './types';
+import { MonthlyAgendaSettingTab } from './settings';
+import { CalendarView, VIEW_TYPE_CALENDAR } from './ui/calendarView';
 
-// Remember to rename these classes and interfaces!
-
-export default class MyPlugin extends Plugin {
-	settings!: MyPluginSettings;
+export default class MonthlyAgendaPlugin extends Plugin {
+	settings!: MonthlyAgendaSettings;
 
 	async onload() {
 		await this.loadSettings();
 
-		// This creates an icon in the left ribbon.
-		this.addRibbonIcon('dice', 'Sample', (_evt: MouseEvent) => {
-			// Called when the user clicks the icon.
-			new Notice('This is a notice!');
-		});
-
-		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('Status bar text');
-
-		// This adds a simple command that can be triggered anywhere
-		this.addCommand({
-			id: 'open-modal-simple',
-			name: 'Open modal (simple)',
-			callback: () => {
-				new SampleModal(this.app).open();
-			},
-		});
-		// This adds an editor command that can perform some operation on the current editor instance
-		this.addCommand({
-			id: 'replace-selected',
-			name: 'Replace selected content',
-			editorCallback: (
-				editor: Editor,
-				_ctx: MarkdownView | MarkdownFileInfo,
-			) => {
-				editor.replaceSelection('Sample editor command');
-			},
-		});
-		// This adds a complex command that can check whether the current state of the app allows execution of the command
-		this.addCommand({
-			id: 'open-modal-complex',
-			name: 'Open modal (complex)',
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const markdownView =
-					this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (markdownView) {
-					// If checking is true, we're simply "checking" if the command can be run.
-					// If checking is false, then we want to actually perform the operation.
-					if (!checking) {
-						new SampleModal(this.app).open();
-					}
-
-					// This command will only show up in Command Palette when the check function returns true
-					return true;
-				}
-				return false;
-			},
-		});
-
-		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
-
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		this.registerDomEvent(activeDocument, 'click', (_evt: MouseEvent) => {
-			new Notice('Click');
-		});
-
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(
-			window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000),
+		// Register custom view
+		this.registerView(
+			VIEW_TYPE_CALENDAR,
+			(leaf) => new CalendarView(leaf, this.settings),
 		);
+
+		// Add ribbon icon to open calendar view
+		this.addRibbonIcon('calendar', 'Open monthly calendar', () => {
+			void this.activateView();
+		});
+
+		// Add command to command palette
+		this.addCommand({
+			id: 'open-monthly-calendar',
+			name: 'Open monthly calendar',
+			callback: () => {
+				void this.activateView();
+			},
+		});
+
+		// Add settings tab
+		this.addSettingTab(new MonthlyAgendaSettingTab(this.app, this));
 	}
 
-	onunload() {}
+	onunload() {
+		// Clean up view references if needed without detaching workspace leaves
+	}
 
 	async loadSettings() {
 		this.settings = Object.assign(
 			{},
 			DEFAULT_SETTINGS,
-			(await this.loadData()) as Partial<MyPluginSettings>,
+			(await this.loadData()) as Partial<MonthlyAgendaSettings>,
 		);
 	}
 
 	async saveSettings() {
 		await this.saveData(this.settings);
-	}
-}
 
-class SampleModal extends Modal {
-	onOpen() {
-		const { contentEl } = this;
-		contentEl.setText('Woah!');
+		// Notify active calendar view leaves of updated settings
+		const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_CALENDAR);
+		leaves.forEach((leaf) => {
+			if (leaf.view instanceof CalendarView) {
+				leaf.view.updateSettings(this.settings);
+			}
+		});
 	}
 
-	onClose() {
-		const { contentEl } = this;
-		contentEl.empty();
+	async activateView() {
+		const { workspace } = this.app;
+
+		let leaf: WorkspaceLeaf | null = null;
+		const leaves = workspace.getLeavesOfType(VIEW_TYPE_CALENDAR);
+
+		leaf = leaves.length > 0 && leaves[0] ? leaves[0] : null;
+
+		if (!leaf) {
+			// Open calendar view in main workspace tab
+			leaf = workspace.getLeaf('tab');
+			await leaf.setViewState({
+				type: VIEW_TYPE_CALENDAR,
+				active: true,
+			});
+		}
+
+		void workspace.revealLeaf(leaf);
 	}
 }
