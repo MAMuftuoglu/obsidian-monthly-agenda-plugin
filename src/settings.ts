@@ -1,17 +1,7 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
+import { getResolvedDailyNotesFolder } from './data/vaultService';
 import MonthlyAgendaPlugin from './main';
-
-export interface MonthlyAgendaSettings {
-	agendaHeading: string;
-	dailyNotesFolder: string;
-	dateFormat: string;
-}
-
-export const DEFAULT_SETTINGS: MonthlyAgendaSettings = {
-	agendaHeading: '## Agenda',
-	dailyNotesFolder: '',
-	dateFormat: 'YYYY-MM-DD',
-};
+import { MonthlyAgendaSettings } from './types';
 
 export class MonthlyAgendaSettingTab extends PluginSettingTab {
 	plugin: MonthlyAgendaPlugin;
@@ -21,55 +11,56 @@ export class MonthlyAgendaSettingTab extends PluginSettingTab {
 		this.plugin = plugin;
 	}
 
-	getSettingDefinitions() {
-		return [
-			{
-				id: 'agendaHeading',
-				name: 'Agenda heading',
-				description:
-					'Markdown heading in daily notes under which agenda events are saved and parsed.',
-			},
-			{
-				id: 'dailyNotesFolder',
-				name: 'Daily notes folder',
-				description:
-					'Folder path where daily notes are stored (leave empty for vault root).',
-			},
-		];
-	}
-
 	display(): void {
 		const { containerEl } = this;
 		containerEl.empty();
 
-		new Setting(containerEl)
-			.setName('Agenda configuration')
-			.setHeading();
+		new Setting(containerEl).setName('Agenda configuration').setHeading();
 
 		new Setting(containerEl)
 			.setName('Agenda heading')
-			.setDesc('Markdown heading in daily notes under which agenda events are saved and parsed.')
+			.setDesc(
+				'Markdown heading in daily notes under which agenda events are saved and parsed.',
+			)
 			.addText((text) =>
 				text
 					.setPlaceholder('## Agenda')
-					.setValue(this.plugin.settings.agendaHeading)
+					.setValue(this.plugin.settings?.agendaHeading || '## Agenda')
 					.onChange(async (value) => {
-						this.plugin.settings.agendaHeading = value.trim() || '## Agenda';
+						this.plugin.settings.agendaHeading = value;
 						await this.plugin.saveSettings();
 					}),
 			);
 
-		new Setting(containerEl)
-			.setName('Daily notes folder')
-			.setDesc('Folder path where daily notes are stored (leave empty for vault root).')
-			.addText((text) =>
-				text
-					.setPlaceholder('E.g. Daily notes')
-					.setValue(this.plugin.settings.dailyNotesFolder)
-					.onChange(async (value) => {
-						this.plugin.settings.dailyNotesFolder = value.trim();
-						await this.plugin.saveSettings();
-					}),
+		const folderSetting = new Setting(containerEl).setName(
+			'Daily notes folder',
+		);
+
+		const updateFolderDesc = () => {
+			const resolvedFolder = getResolvedDailyNotesFolder(
+				this.app,
+				this.plugin.settings,
 			);
+			const folderStatusText = resolvedFolder
+				? `Active target: "${resolvedFolder}"`
+				: 'Active target: Vault root (/)';
+			folderSetting.setDesc(
+				`Override folder path where daily notes are stored (e.g. "Daily notes"). Leave blank to auto-detect from Obsidian's Daily Notes plugin. (${folderStatusText})`,
+			);
+		};
+
+		updateFolderDesc();
+
+		folderSetting.addText((text) =>
+			text
+				.setPlaceholder('E.g. Daily notes')
+				.setValue(this.plugin.settings?.dailyNotesFolder || '')
+				.onChange(async (value) => {
+					this.plugin.settings.dailyNotesFolder = value;
+					await this.plugin.saveSettings();
+					updateFolderDesc();
+				}),
+		);
 	}
 }
+
