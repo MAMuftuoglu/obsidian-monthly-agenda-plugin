@@ -1,57 +1,41 @@
 import { App, TFile, normalizePath } from 'obsidian';
+import { MONTH_NAMES } from '../utils/constants';
 import { CalendarEvent, MonthlyAgendaSettings } from '../types';
 import { injectEventIntoAgenda, parseAgendaEvents } from './eventParser';
 
-interface InternalPluginInstance {
-	options?: {
-		folder?: string;
-	};
-}
-
-interface InternalPluginWrapper {
-	enabled?: boolean;
-	instance?: InternalPluginInstance;
-}
-
-interface InternalPlugins {
-	getPluginById(id: string): InternalPluginWrapper | null;
-}
-
-interface AppWithInternalPlugins {
-	internalPlugins?: InternalPlugins;
-}
-
 /**
  * Resolves the folder path for daily notes.
- * Uses plugin settings override if provided. Otherwise, auto-detects from Obsidian's internal Daily Notes plugin.
+ * Uses plugin settings override if provided. Takes target dateStr (YYYY-MM-DD) or defaults to current date.
  */
 export function getResolvedDailyNotesFolder(
-	app: App,
 	settings: MonthlyAgendaSettings,
+	dateStr?: string,
 ): string {
-	if (
-		settings?.dailyNotesFolder &&
-		settings.dailyNotesFolder.trim().length > 0
-	) {
-		return settings.dailyNotesFolder.trim();
-	}
+	const today = new Date();
+	let year = today.getFullYear();
+	let monthIndex = today.getMonth();
 
-	try {
-		const appWithPlugins = app as unknown as AppWithInternalPlugins;
-		const internalDailyNotes =
-			appWithPlugins.internalPlugins?.getPluginById?.('daily-notes');
-
-		if (internalDailyNotes && internalDailyNotes.enabled) {
-			const folder = internalDailyNotes.instance?.options?.folder;
-			if (typeof folder === 'string' && folder.trim().length > 0) {
-				return folder.trim();
-			}
+	if (dateStr && dateStr.includes('-')) {
+		const parts = dateStr.split('-');
+		if (
+			parts.length < 2 ||
+			parts[0] === undefined ||
+			parts[1] === undefined
+		) {
+			return '';
 		}
-	} catch (err) {
-		console.debug('Could not auto-detect Daily Notes plugin folder:', err);
+		year = parseInt(parts[0], 10);
+		monthIndex = parseInt(parts[1], 10) - 1;
 	}
 
-	return '';
+	const monthName = `${(monthIndex % 12) + 1} - ${MONTH_NAMES[monthIndex] ?? MONTH_NAMES[0]}`;
+	const baseFolder = settings?.dailyNotesFolder?.trim() || '';
+
+	if (baseFolder) {
+		return `${baseFolder}/${year}/${monthName}`;
+	}
+
+	return `${year}/${monthName}`;
 }
 
 /**
@@ -83,7 +67,7 @@ export function getDailyNotePath(
 	dateStr: string,
 	settings: MonthlyAgendaSettings,
 ): string {
-	const folder = getResolvedDailyNotesFolder(app, settings);
+	const folder = getResolvedDailyNotesFolder(settings, dateStr);
 	const filename = `${dateStr}.md`;
 	if (!folder) {
 		return normalizePath(filename);
@@ -140,11 +124,15 @@ export async function saveEventToDailyNote(
 	if (file) {
 		// File exists - safely update using app.vault.process
 		await app.vault.process(file, (content) => {
-			return injectEventIntoAgenda(content, event, settings.agendaHeading);
+			return injectEventIntoAgenda(
+				content,
+				event,
+				settings.agendaHeading,
+			);
 		});
 	} else {
 		// Ensure folder structure exists
-		const folder = getResolvedDailyNotesFolder(app, settings);
+		const folder = getResolvedDailyNotesFolder(settings, dateStr);
 		if (folder) {
 			await ensureFolderExists(app, folder);
 		}

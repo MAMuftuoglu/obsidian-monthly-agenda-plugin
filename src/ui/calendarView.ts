@@ -1,6 +1,7 @@
 import { ItemView, WorkspaceLeaf, setIcon } from 'obsidian';
 import { getEventsForDate } from '../data/vaultService';
 import { CalendarEvent, MonthlyAgendaSettings } from '../types';
+import { MONTH_NAMES, WEEKDAY_NAMES } from '../utils/constants';
 import { AddEventModal } from './addEventModal';
 
 export const VIEW_TYPE_CALENDAR = 'monthly-agenda-calendar';
@@ -75,21 +76,7 @@ export class CalendarView extends ItemView {
 			void this.changeMonth(-1);
 		});
 
-		const monthNames = [
-			'January',
-			'February',
-			'March',
-			'April',
-			'May',
-			'June',
-			'July',
-			'August',
-			'September',
-			'October',
-			'November',
-			'December',
-		];
-		const titleText = `${monthNames[this.currentMonth]} ${this.currentYear}`;
+		const titleText = `${MONTH_NAMES[this.currentMonth]} ${this.currentYear}`;
 		headerEl.createEl('h3', { cls: 'calendar-title', text: titleText });
 
 		const navNext = headerEl.createEl('button', {
@@ -125,11 +112,10 @@ export class CalendarView extends ItemView {
 		const gridContainer = container.createDiv({ cls: 'calendar-grid' });
 
 		// Weekday labels (Mon - Sun)
-		const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 		const weekdayRow = gridContainer.createDiv({
 			cls: 'calendar-weekday-row',
 		});
-		weekDays.forEach((day) => {
+		WEEKDAY_NAMES.forEach((day) => {
 			weekdayRow.createDiv({ cls: 'calendar-weekday-header', text: day });
 		});
 

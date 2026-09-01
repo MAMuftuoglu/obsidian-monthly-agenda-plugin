@@ -1,7 +1,6 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
 import { getResolvedDailyNotesFolder } from './data/vaultService';
 import MonthlyAgendaPlugin from './main';
-import { MonthlyAgendaSettings } from './types';
 
 export class MonthlyAgendaSettingTab extends PluginSettingTab {
 	plugin: MonthlyAgendaPlugin;
@@ -9,6 +8,23 @@ export class MonthlyAgendaSettingTab extends PluginSettingTab {
 	constructor(app: App, plugin: MonthlyAgendaPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
+	}
+
+	getSettingDefinitions() {
+		return [
+			{
+				id: 'agendaHeading',
+				name: 'Agenda heading',
+				description:
+					'Markdown heading in daily notes under which agenda events are saved and parsed.',
+			},
+			{
+				id: 'dailyNotesFolder',
+				name: 'Daily notes folder',
+				description:
+					'Folder path where daily notes are stored (leave empty for vault root).',
+			},
+		];
 	}
 
 	display(): void {
@@ -25,7 +41,9 @@ export class MonthlyAgendaSettingTab extends PluginSettingTab {
 			.addText((text) =>
 				text
 					.setPlaceholder('## Agenda')
-					.setValue(this.plugin.settings?.agendaHeading || '## Agenda')
+					.setValue(
+						this.plugin.settings?.agendaHeading || '## Agenda',
+					)
 					.onChange(async (value) => {
 						this.plugin.settings.agendaHeading = value;
 						await this.plugin.saveSettings();
@@ -38,7 +56,6 @@ export class MonthlyAgendaSettingTab extends PluginSettingTab {
 
 		const updateFolderDesc = () => {
 			const resolvedFolder = getResolvedDailyNotesFolder(
-				this.app,
 				this.plugin.settings,
 			);
 			const folderStatusText = resolvedFolder
@@ -63,4 +80,3 @@ export class MonthlyAgendaSettingTab extends PluginSettingTab {
 		);
 	}
 }
-
