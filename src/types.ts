@@ -8,6 +8,17 @@ export interface CalendarEvent {
 	completed?: boolean;
 }
 
+export interface AgendaNote {
+	id?: string;
+	date: string; // Format: YYYY-MM-DD
+	title: string;
+}
+
+export interface DailyAgendaData {
+	events: CalendarEvent[];
+	notes: AgendaNote[];
+}
+
 export interface MonthlyAgendaSettings {
 	agendaHeading: string;
 	dailyNotesFolder: string;
@@ -19,3 +30,4 @@ export const DEFAULT_SETTINGS: MonthlyAgendaSettings = {
 	dailyNotesFolder: '',
 	dateFormat: 'YYYY-MM-DD',
 };
+

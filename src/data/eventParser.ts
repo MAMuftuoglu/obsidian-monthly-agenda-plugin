@@ -1,4 +1,4 @@
-import { CalendarEvent } from '../types';
+import { AgendaNote, CalendarEvent, DailyAgendaData } from '../types';
 
 /**
  * Regex pattern to match agenda event items in daily notes.
@@ -22,19 +22,21 @@ function normalizeTime(timeStr: string): string {
 }
 
 /**
- * Parses markdown text to extract events under a specific heading (default: ## Agenda).
+ * Parses markdown text to extract events and notes under a specific heading (default: ## Agenda).
  */
-export function parseAgendaEvents(
+export function parseAgendaData(
 	markdown: string,
 	dateStr: string,
 	heading: string = '## Agenda',
-): CalendarEvent[] {
+): DailyAgendaData {
 	const events: CalendarEvent[] = [];
-	if (!markdown) return events;
+	const notes: AgendaNote[] = [];
+	if (!markdown) return { events, notes };
 
 	const lines = markdown.split(/\r?\n/);
 	let inAgendaSection = false;
 	const normalizedHeading = heading.trim().toLowerCase();
+	const headingLevel = (heading.match(/^#+/) || ['##'])[0].length;
 
 	for (let i = 0; i < lines.length; i++) {
 		const currentLine = lines[i];
@@ -44,23 +46,28 @@ export function parseAgendaEvents(
 
 		// Check if line is a header
 		if (line.startsWith('#')) {
+			const currentLevel = (line.match(/^#+/) || ['#'])[0].length;
 			if (line.toLowerCase() === normalizedHeading) {
 				inAgendaSection = true;
 				continue;
 			} else if (inAgendaSection) {
-				// We exited the agenda section upon encountering another header
-				break;
+				if (currentLevel <= headingLevel) {
+					// Exited main agenda section upon encountering same-or-higher level header
+					break;
+				}
+				// Subheader inside agenda section (e.g. ### Notes), remain in section
+				continue;
 			}
 		}
 
 		if (inAgendaSection && line.length > 0) {
-			const match = line.match(AGENDA_ITEM_REGEX);
-			if (match) {
-				const completedMark = match[1] ?? '';
-				const startTime = normalizeTime(match[2] ?? '');
-				const endTime = normalizeTime(match[3] ?? '');
-				const title = match[4] ? match[4].trim() : '';
-				const description = match[5] ? match[5].trim() : undefined;
+			const eventMatch = line.match(AGENDA_ITEM_REGEX);
+			if (eventMatch) {
+				const completedMark = eventMatch[1] ?? '';
+				const startTime = normalizeTime(eventMatch[2] ?? '');
+				const endTime = normalizeTime(eventMatch[3] ?? '');
+				const title = eventMatch[4] ? eventMatch[4].trim() : '';
+				const description = eventMatch[5] ? eventMatch[5].trim() : undefined;
 
 				events.push({
 					id: `${dateStr}-${startTime}-${title}`,
@@ -71,6 +78,19 @@ export function parseAgendaEvents(
 					description,
 					completed: completedMark.toLowerCase() === 'x',
 				});
+			} else if (/^\s*[-*]\s+/.test(line)) {
+				// Bullet line that is not a timed event -> parse as AgendaNote
+				let title = line.replace(/^\s*[-*]\s+(?:\[[ xX]?\]\s*)?/, '').trim();
+				if (title.startsWith('**') && title.endsWith('**') && title.length > 4) {
+					title = title.slice(2, -2).trim();
+				}
+				if (title.length > 0) {
+					notes.push({
+						id: `${dateStr}-note-${notes.length + 1}-${title}`,
+						date: dateStr,
+						title,
+					});
+				}
 			}
 		}
 	}
@@ -81,7 +101,18 @@ export function parseAgendaEvents(
 		return dateA.getTime() - dateB.getTime();
 	});
 
-	return sortedEvents;
+	return { events: sortedEvents, notes };
+}
+
+/**
+ * Parses markdown text to extract events under a specific heading (default: ## Agenda).
+ */
+export function parseAgendaEvents(
+	markdown: string,
+	dateStr: string,
+	heading: string = '## Agenda',
+): CalendarEvent[] {
+	return parseAgendaData(markdown, dateStr, heading).events;
 }
 
 /**
@@ -93,6 +124,15 @@ export function formatEventToMarkdown(
 	const completedMarker = event.completed ? 'x' : ' ';
 	const descSuffix = event.description ? ` | ${event.description}` : '';
 	return `- [${completedMarker}] ${event.startTime} - ${event.endTime} | **${event.title}**${descSuffix}`;
+}
+
+/**
+ * Formats an AgendaNote into markdown string standard.
+ */
+export function formatNoteToMarkdown(
+	note: Omit<AgendaNote, 'date'>,
+): string {
+	return `- ${note.title}`;
 }
 
 /**
@@ -169,3 +209,105 @@ export function injectEventIntoAgenda(
 		return result;
 	}
 }
+
+/**
+ * Injects a new note under the specified heading (under ### Notes subheader) in the markdown document.
+ */
+export function injectNoteIntoAgenda(
+	markdown: string,
+	note: Omit<AgendaNote, 'date'>,
+	heading: string = '## Agenda',
+): string {
+	const formattedNoteLine = formatNoteToMarkdown(note);
+	const lines = markdown.split(/\r?\n/);
+	const normalizedHeading = heading.trim().toLowerCase();
+	const headingLevel = (heading.match(/^#+/) || ['##'])[0].length;
+
+	let headingIndex = -1;
+	let nextHeadingIndex = -1;
+
+	for (let i = 0; i < lines.length; i++) {
+		const currentLine = lines[i];
+		if (currentLine === undefined) continue;
+
+		const line = currentLine.trim();
+		if (line.startsWith('#')) {
+			const currentLevel = (line.match(/^#+/) || ['#'])[0].length;
+			if (line.toLowerCase() === normalizedHeading) {
+				headingIndex = i;
+			} else if (
+				headingIndex !== -1 &&
+				nextHeadingIndex === -1 &&
+				currentLevel <= headingLevel
+			) {
+				nextHeadingIndex = i;
+				break;
+			}
+		}
+	}
+
+	if (headingIndex !== -1) {
+		const sectionEndIndex =
+			nextHeadingIndex !== -1 ? nextHeadingIndex : lines.length;
+
+		let notesHeaderIndex = -1;
+		let nextSubheaderIndex = -1;
+
+		for (let i = headingIndex + 1; i < sectionEndIndex; i++) {
+			const currentLine = lines[i];
+			if (currentLine === undefined) continue;
+
+			const line = currentLine.trim();
+			if (line.startsWith('#')) {
+				if (line.toLowerCase().includes('notes')) {
+					notesHeaderIndex = i;
+				} else if (
+					notesHeaderIndex !== -1 &&
+					nextSubheaderIndex === -1
+				) {
+					nextSubheaderIndex = i;
+					break;
+				}
+			}
+		}
+
+		if (notesHeaderIndex !== -1) {
+			const subEndIndex =
+				nextSubheaderIndex !== -1
+					? nextSubheaderIndex
+					: sectionEndIndex;
+			let lastNoteLineIndex = notesHeaderIndex;
+
+			for (let i = notesHeaderIndex + 1; i < subEndIndex; i++) {
+				const currentLine = lines[i];
+				if (currentLine === undefined) continue;
+				if (currentLine.trim().length > 0) {
+					lastNoteLineIndex = i;
+				}
+			}
+
+			lines.splice(lastNoteLineIndex + 1, 0, formattedNoteLine);
+			return lines.join('\n');
+		} else {
+			let lastContentIndex = headingIndex;
+			for (let i = headingIndex + 1; i < sectionEndIndex; i++) {
+				const currentLine = lines[i];
+				if (currentLine !== undefined && currentLine.trim().length > 0) {
+					lastContentIndex = i;
+				}
+			}
+
+			const toInsert = ['', '### Notes', formattedNoteLine];
+			lines.splice(lastContentIndex + 1, 0, ...toInsert);
+			return lines.join('\n');
+		}
+	} else {
+		let result = markdown.trimEnd();
+		if (result.length > 0) {
+			result += '\n\n';
+		}
+		result += `${heading}\n\n### Notes\n${formattedNoteLine}\n`;
+		return result;
+	}
+}
+

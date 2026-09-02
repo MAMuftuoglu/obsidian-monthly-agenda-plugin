@@ -1,8 +1,9 @@
 import { ItemView, WorkspaceLeaf, setIcon } from 'obsidian';
-import { getEventsForDate } from '../data/vaultService';
-import { CalendarEvent, MonthlyAgendaSettings } from '../types';
+import { getAgendaDataForDate } from '../data/vaultService';
+import { AgendaNote, CalendarEvent, MonthlyAgendaSettings } from '../types';
 import { MONTH_NAMES, WEEKDAY_NAMES } from '../utils/constants';
 import { AddEventModal } from './addEventModal';
+import { AddNoteModal } from './addNoteModal';
 
 export const VIEW_TYPE_CALENDAR = 'monthly-agenda-calendar';
 
@@ -187,8 +188,8 @@ export class CalendarView extends ItemView {
 				text: day.toString(),
 			});
 
-			// Fetch events for this day
-			const events = await getEventsForDate(
+			// Fetch events and notes for this day
+			const { events, notes } = await getAgendaDataForDate(
 				this.app,
 				dateStr,
 				this.settings,
@@ -198,37 +199,59 @@ export class CalendarView extends ItemView {
 				cls: 'calendar-day-events-container',
 			});
 
-			if (events.length > 0) {
-				const maxVisible = 5;
-				const visibleEvents = events.slice(0, maxVisible);
-				const overflowCount = events.length - maxVisible;
+			const allItems: Array<
+				| { type: 'event'; data: CalendarEvent }
+				| { type: 'note'; data: AgendaNote }
+			> = [
+				...events.map((evt) => ({ type: 'event' as const, data: evt })),
+				...notes.map((nt) => ({ type: 'note' as const, data: nt })),
+			];
 
-				visibleEvents.forEach((evt) => {
-					const pill = eventsContainer.createDiv({
-						cls: 'calendar-day-event-pill',
-					});
-					if (evt.startTime) {
+			if (allItems.length > 0) {
+				const maxVisible = 5;
+				const visibleItems = allItems.slice(0, maxVisible);
+				const overflowCount = allItems.length - maxVisible;
+
+				visibleItems.forEach((item) => {
+					if (item.type === 'event') {
+						const pill = eventsContainer.createDiv({
+							cls: 'calendar-day-event-pill',
+						});
+						if (item.data.startTime) {
+							pill.createSpan({
+								cls: 'calendar-day-event-time',
+								text: item.data.startTime,
+							});
+						}
 						pill.createSpan({
-							cls: 'calendar-day-event-time',
-							text: evt.startTime,
+							cls: 'calendar-day-event-title',
+							text: item.data.title,
+						});
+					} else {
+						const pill = eventsContainer.createDiv({
+							cls: 'calendar-day-note-pill',
+						});
+						const iconSpan = pill.createSpan({
+							cls: 'calendar-day-note-icon',
+						});
+						setIcon(iconSpan, 'file-text');
+						pill.createSpan({
+							cls: 'calendar-day-note-title',
+							text: item.data.title,
 						});
 					}
-					pill.createSpan({
-						cls: 'calendar-day-event-title',
-						text: evt.title,
-					});
 				});
 
 				if (overflowCount > 0) {
 					eventsContainer.createDiv({
 						cls: 'calendar-day-more-events',
-						text: `+${overflowCount} ${overflowCount === 1 ? 'event' : 'events'}`,
+						text: `+${overflowCount} more`,
 					});
 
 					// Add hover popover preview ONLY when overflow occurs
 					dayCell.addEventListener('mouseenter', (evt) => {
-						const hoverEvents = events.slice(maxVisible);
-						this.showHoverPopover(evt, dateStr, hoverEvents);
+						const hoverItems = allItems.slice(maxVisible);
+						this.showHoverPopover(evt, dateStr, hoverItems);
 					});
 
 					dayCell.addEventListener('mouseleave', () => {
@@ -310,15 +333,22 @@ export class CalendarView extends ItemView {
 			void this.renderSidePanel();
 		});
 
-		// 2. Action Bar (Create Event Button on top)
+		// 2. Action Bar (Create Event & Add Note Buttons)
 		const actionContainer = this.sidePanelEl.createDiv({
 			cls: 'panel-actions',
 		});
+
 		const createBtn = actionContainer.createEl('button', {
 			cls: 'calendar-panel-create-btn',
 		});
 		setIcon(createBtn.createSpan({ cls: 'btn-icon' }), 'plus');
 		createBtn.createSpan({ text: 'Create Event' });
+
+		const addNoteBtn = actionContainer.createEl('button', {
+			cls: 'calendar-panel-add-note-btn',
+		});
+		setIcon(addNoteBtn.createSpan({ cls: 'btn-icon' }), 'file-plus');
+		addNoteBtn.createSpan({ text: 'Add Note' });
 
 		const currentSelectedDate = this.selectedDate;
 		createBtn.addEventListener('click', () => {
@@ -333,55 +363,106 @@ export class CalendarView extends ItemView {
 			).open();
 		});
 
-		// 3. Events List Section
-		const eventsListContainer = this.sidePanelEl.createDiv({
+		addNoteBtn.addEventListener('click', () => {
+			if (!currentSelectedDate) return;
+			new AddNoteModal(
+				this.app,
+				currentSelectedDate,
+				this.settings,
+				() => {
+					void this.refresh();
+				},
+			).open();
+		});
+
+		// 3. Agenda Content Section (Events + Notes Subtitle Divider + Notes)
+		const panelEventsContainer = this.sidePanelEl.createDiv({
 			cls: 'panel-events-container',
 		});
 
-		const events = await getEventsForDate(
+		const { events, notes } = await getAgendaDataForDate(
 			this.app,
 			this.selectedDate,
 			this.settings,
 		);
 
-		if (events.length === 0) {
-			const emptyEl = eventsListContainer.createDiv({
+		if (events.length === 0 && notes.length === 0) {
+			const emptyEl = panelEventsContainer.createDiv({
 				cls: 'panel-empty-state',
 			});
 			setIcon(emptyEl.createDiv({ cls: 'empty-icon' }), 'calendar-x');
 			emptyEl.createDiv({
 				cls: 'empty-text',
-				text: 'No events scheduled for this day.',
+				text: 'No events or notes scheduled for this day.',
 			});
 			emptyEl.createDiv({
 				cls: 'empty-hint',
-				text: 'Click "Create Event" above to add one.',
+				text: 'Click "Create Event" or "Add Note" above to add one.',
 			});
 		} else {
-			const list = eventsListContainer.createDiv({
-				cls: 'panel-events-list',
-			});
-			events.forEach((item) => {
-				const itemEl = list.createDiv({ cls: 'panel-event-item' });
-
-				const timeEl = itemEl.createDiv({ cls: 'panel-event-time' });
-				setIcon(timeEl.createSpan({ cls: 'time-icon' }), 'clock');
-				timeEl.createSpan({
-					text: `${item.startTime} - ${item.endTime}`,
+			// Events section
+			if (events.length > 0) {
+				const list = panelEventsContainer.createDiv({
+					cls: 'panel-events-list',
 				});
+				events.forEach((item) => {
+					const itemEl = list.createDiv({ cls: 'panel-event-item' });
 
-				itemEl.createDiv({
-					cls: 'panel-event-title',
-					text: item.title,
-				});
-
-				if (item.description) {
-					itemEl.createDiv({
-						cls: 'panel-event-desc',
-						text: item.description,
+					const timeEl = itemEl.createDiv({ cls: 'panel-event-time' });
+					setIcon(timeEl.createSpan({ cls: 'time-icon' }), 'clock');
+					timeEl.createSpan({
+						text: `${item.startTime} - ${item.endTime}`,
 					});
-				}
+
+					itemEl.createDiv({
+						cls: 'panel-event-title',
+						text: item.title,
+					});
+
+					if (item.description) {
+						itemEl.createDiv({
+							cls: 'panel-event-desc',
+							text: item.description,
+						});
+					}
+				});
+			} else {
+				panelEventsContainer.createDiv({
+					cls: 'panel-no-items-text',
+					text: 'No timed events scheduled.',
+				});
+			}
+
+			// Notes Divider Header
+			const notesDivider = panelEventsContainer.createDiv({
+				cls: 'panel-section-divider',
 			});
+			const notesHeader = notesDivider.createDiv({
+				cls: 'panel-notes-header',
+			});
+			setIcon(notesHeader.createSpan({ cls: 'notes-icon' }), 'file-text');
+			notesHeader.createSpan({ text: 'Notes' });
+
+			// Notes section
+			if (notes.length > 0) {
+				const notesList = panelEventsContainer.createDiv({
+					cls: 'panel-notes-list',
+				});
+				notes.forEach((note) => {
+					const noteEl = notesList.createDiv({ cls: 'panel-note-item' });
+					const noteIcon = noteEl.createSpan({ cls: 'panel-note-icon' });
+					setIcon(noteIcon, 'file-text');
+					noteEl.createSpan({
+						cls: 'panel-note-title',
+						text: note.title,
+					});
+				});
+			} else {
+				panelEventsContainer.createDiv({
+					cls: 'panel-no-items-text',
+					text: 'No notes for this day.',
+				});
+			}
 		}
 	}
 
@@ -414,7 +495,10 @@ export class CalendarView extends ItemView {
 	private showHoverPopover(
 		evt: MouseEvent,
 		dateStr: string,
-		events: CalendarEvent[],
+		overflowItems: Array<
+			| { type: 'event'; data: CalendarEvent }
+			| { type: 'note'; data: AgendaNote }
+		>,
 	): void {
 		if (!this.popoverEl) return;
 
@@ -424,21 +508,31 @@ export class CalendarView extends ItemView {
 		const list = this.popoverEl.createDiv({
 			cls: 'popover-events-list',
 		});
-		events.forEach((item) => {
-			const itemEl = list.createDiv({ cls: 'popover-event-item' });
-			itemEl.createSpan({
-				cls: 'popover-event-time',
-				text: `${item.startTime} - ${item.endTime}`,
-			});
-			itemEl.createSpan({
-				cls: 'popover-event-title',
-				text: item.title,
-			});
+		overflowItems.forEach((item) => {
+			if (item.type === 'event') {
+				const itemEl = list.createDiv({ cls: 'popover-event-item' });
+				itemEl.createSpan({
+					cls: 'popover-event-time',
+					text: `${item.data.startTime} - ${item.data.endTime}`,
+				});
+				itemEl.createSpan({
+					cls: 'popover-event-title',
+					text: item.data.title,
+				});
 
-			if (item.description) {
-				itemEl.createDiv({
-					cls: 'popover-event-desc',
-					text: item.description,
+				if (item.data.description) {
+					itemEl.createDiv({
+						cls: 'popover-event-desc',
+						text: item.data.description,
+					});
+				}
+			} else {
+				const itemEl = list.createDiv({ cls: 'popover-note-item' });
+				const iconSpan = itemEl.createSpan({ cls: 'popover-note-icon' });
+				setIcon(iconSpan, 'file-text');
+				itemEl.createSpan({
+					cls: 'popover-note-title',
+					text: item.data.title,
 				});
 			}
 		});
@@ -478,3 +572,4 @@ export class CalendarView extends ItemView {
 		}
 	}
 }
+

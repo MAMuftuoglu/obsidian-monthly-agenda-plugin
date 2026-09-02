@@ -176,6 +176,43 @@
 	background: var(--background-modifier-hover);
 }
 
+.calendar-day-note-pill {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	background: var(--background-secondary);
+	border-left: 3px solid var(--text-muted);
+	border-radius: var(--radius-s, 3px);
+	padding: 2px 4px;
+	font-size: 0.72rem;
+	line-height: 1.2;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	color: var(--text-normal);
+}
+
+.calendar-day-note-pill:hover {
+	background: var(--background-modifier-hover);
+}
+
+.calendar-day-note-icon {
+	display: flex;
+	align-items: center;
+	width: 11px;
+	height: 11px;
+	color: var(--text-muted);
+	flex-shrink: 0;
+}
+
+.calendar-day-note-title {
+	font-weight: 400;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--text-normal);
+}
+
 .calendar-day-event-time {
 	font-weight: 600;
 	color: var(--text-muted);
@@ -267,39 +304,51 @@
 	color: var(--text-normal);
 }
 
-/* Create Button on Top of Panel */
+/* Action buttons on Top of Panel */
 .panel-actions {
 	display: flex;
-	flex-direction: column;
+	flex-direction: row;
+	gap: 8px;
 }
 
-.calendar-panel-create-btn {
+.calendar-panel-create-btn,
+.calendar-panel-add-note-btn {
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	gap: 6px;
-	width: 100%;
+	flex: 1;
 	background: var(--interactive-accent);
 	color: var(--text-on-accent, #ffffff);
 	border: none;
 	border-radius: var(--radius-s, 6px);
-	padding: 8px 12px;
-	font-size: 0.88rem;
+	padding: 8px 10px;
+	font-size: 0.82rem;
 	font-weight: 600;
 	cursor: pointer;
 	transition: background-color 0.15s ease;
+}
+
+.calendar-panel-add-note-btn {
+	background: var(--background-modifier-border);
+	color: var(--text-normal);
 }
 
 .calendar-panel-create-btn:hover {
 	background: var(--interactive-accent-hover);
 }
 
-.calendar-panel-create-btn .btn-icon {
+.calendar-panel-add-note-btn:hover {
+	background: var(--background-modifier-hover);
+}
+
+.calendar-panel-create-btn .btn-icon,
+.calendar-panel-add-note-btn .btn-icon {
 	display: flex;
 	align-items: center;
 }
 
-/* Panel Events List */
+/* Panel Events & Notes List */
 .panel-events-container {
 	display: flex;
 	flex-direction: column;
@@ -354,6 +403,72 @@
 	line-height: 1.35;
 	margin-top: 2px;
 	word-break: break-word;
+}
+
+/* Section Divider Subtitle Notes */
+.panel-section-divider {
+	margin-top: 14px;
+	margin-bottom: 8px;
+	border-bottom: 1px solid var(--background-modifier-border);
+	padding-bottom: 4px;
+}
+
+.panel-notes-header {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 0.82rem;
+	font-weight: 600;
+	color: var(--text-muted);
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+.panel-notes-header .notes-icon {
+	display: flex;
+	align-items: center;
+	width: 14px;
+	height: 14px;
+}
+
+.panel-notes-list {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.panel-note-item {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 6px 10px;
+	background: var(--background-primary);
+	border-radius: var(--radius-s, 6px);
+	border: 1px solid var(--background-modifier-border);
+	border-left: 3px solid var(--text-muted);
+}
+
+.panel-note-icon {
+	display: flex;
+	align-items: center;
+	width: 13px;
+	height: 13px;
+	color: var(--text-muted);
+	flex-shrink: 0;
+}
+
+.panel-note-title {
+	font-size: 0.85rem;
+	color: var(--text-normal);
+	word-break: break-word;
+}
+
+.panel-no-items-text {
+	font-size: 0.78rem;
+	color: var(--text-muted);
+	font-style: italic;
+	opacity: 0.7;
+	padding: 4px 0;
 }
 
 /* Empty State */
@@ -463,3 +578,28 @@
 	color: var(--text-muted);
 	margin-top: 2px;
 }
+
+.popover-note-item {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 6px;
+	background: var(--background-primary);
+	border-radius: var(--radius-s, 4px);
+	border-left: 3px solid var(--text-muted);
+}
+
+.popover-note-icon {
+	display: flex;
+	align-items: center;
+	width: 12px;
+	height: 12px;
+	color: var(--text-muted);
+	flex-shrink: 0;
+}
+
+.popover-note-title {
+	font-size: 0.8rem;
+	color: var(--text-normal);
+}
+

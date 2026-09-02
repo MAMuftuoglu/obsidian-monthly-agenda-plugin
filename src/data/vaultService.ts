@@ -1,7 +1,12 @@
 import { App, TFile, normalizePath } from 'obsidian';
 import { MONTH_NAMES } from '../utils/constants';
-import { CalendarEvent, MonthlyAgendaSettings } from '../types';
-import { injectEventIntoAgenda, parseAgendaEvents } from './eventParser';
+import { AgendaNote, CalendarEvent, DailyAgendaData, MonthlyAgendaSettings } from '../types';
+import {
+	injectEventIntoAgenda,
+	injectNoteIntoAgenda,
+	parseAgendaData,
+	parseAgendaEvents,
+} from './eventParser';
 
 /**
  * Resolves the folder path for daily notes.
@@ -109,6 +114,23 @@ export async function getEventsForDate(
 }
 
 /**
+ * Reads and parses agenda events and notes for a given date string.
+ */
+export async function getAgendaDataForDate(
+	app: App,
+	dateStr: string,
+	settings: MonthlyAgendaSettings,
+): Promise<DailyAgendaData> {
+	const file = getDailyNoteFile(app, dateStr, settings);
+	if (!file) {
+		return { events: [], notes: [] };
+	}
+
+	const content = await app.vault.read(file);
+	return parseAgendaData(content, dateStr, settings.agendaHeading);
+}
+
+/**
  * Saves a new agenda event to the daily note for a given date string.
  * Creates the daily note file if it does not yet exist.
  */
@@ -146,3 +168,40 @@ export async function saveEventToDailyNote(
 		await app.vault.create(path, initialContent);
 	}
 }
+
+/**
+ * Saves a new agenda note to the daily note for a given date string.
+ * Creates the daily note file if it does not yet exist.
+ */
+export async function saveNoteToDailyNote(
+	app: App,
+	dateStr: string,
+	note: Omit<AgendaNote, 'date'>,
+	settings: MonthlyAgendaSettings,
+): Promise<void> {
+	const path = getDailyNotePath(app, dateStr, settings);
+	const file = getDailyNoteFile(app, dateStr, settings);
+
+	if (file) {
+		await app.vault.process(file, (content) => {
+			return injectNoteIntoAgenda(
+				content,
+				note,
+				settings.agendaHeading,
+			);
+		});
+	} else {
+		const folder = getResolvedDailyNotesFolder(settings, dateStr);
+		if (folder) {
+			await ensureFolderExists(app, folder);
+		}
+
+		const initialContent = injectNoteIntoAgenda(
+			'',
+			note,
+			settings.agendaHeading,
+		);
+		await app.vault.create(path, initialContent);
+	}
+}
+
