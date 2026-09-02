@@ -8,6 +8,7 @@ export class AddNoteModal extends Modal {
 	private onSaveSuccess: () => void;
 
 	private title: string = '';
+	private isTodo: boolean = false;
 
 	constructor(
 		app: App,
@@ -37,6 +38,15 @@ export class AddNoteModal extends Modal {
 			);
 
 		new Setting(contentEl)
+			.setName('Is this a to-do task?')
+			.setDesc('Create this note as a to-do item (checkbox)')
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.isTodo)
+					.onChange((value) => (this.isTodo = value)),
+			);
+
+		new Setting(contentEl)
 			.addButton((button) =>
 				button
 					.setButtonText('Save note')
@@ -53,6 +63,7 @@ export class AddNoteModal extends Modal {
 								this.dateStr,
 								{
 									title: this.title,
+									isTodo: this.isTodo,
 								},
 								this.settings,
 							);

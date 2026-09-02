@@ -234,7 +234,7 @@ export class CalendarView extends ItemView {
 						const iconSpan = pill.createSpan({
 							cls: 'calendar-day-note-icon',
 						});
-						setIcon(iconSpan, 'file-text');
+						setIcon(iconSpan, item.data.isTodo ? (item.data.completed ? 'check-square' : 'square') : 'file-text');
 						pill.createSpan({
 							cls: 'calendar-day-note-title',
 							text: item.data.title,
@@ -451,7 +451,7 @@ export class CalendarView extends ItemView {
 				notes.forEach((note) => {
 					const noteEl = notesList.createDiv({ cls: 'panel-note-item' });
 					const noteIcon = noteEl.createSpan({ cls: 'panel-note-icon' });
-					setIcon(noteIcon, 'file-text');
+					setIcon(noteIcon, note.isTodo ? (note.completed ? 'check-square' : 'square') : 'file-text');
 					noteEl.createSpan({
 						cls: 'panel-note-title',
 						text: note.title,
@@ -529,7 +529,7 @@ export class CalendarView extends ItemView {
 			} else {
 				const itemEl = list.createDiv({ cls: 'popover-note-item' });
 				const iconSpan = itemEl.createSpan({ cls: 'popover-note-icon' });
-				setIcon(iconSpan, 'file-text');
+				setIcon(iconSpan, item.data.isTodo ? (item.data.completed ? 'check-square' : 'square') : 'file-text');
 				itemEl.createSpan({
 					cls: 'popover-note-title',
 					text: item.data.title,

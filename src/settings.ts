@@ -78,5 +78,22 @@ export class MonthlyAgendaSettingTab extends PluginSettingTab {
 					updateFolderDesc();
 				}),
 		);
+
+		new Setting(containerEl)
+			.setName('Daily to-dos')
+			.setDesc(
+				'List of default daily tasks to automatically add to new daily notes. Enter one per line.',
+			)
+			.addTextArea((text) =>
+				text
+					.setPlaceholder(
+						'List your daily to-dos. Example:\nWorkout\nread 10 pages',
+					)
+					.setValue(this.plugin.settings?.dailyTodos || '')
+					.onChange(async (value) => {
+						this.plugin.settings.dailyTodos = value;
+						await this.plugin.saveSettings();
+					}),
+			);
 	}
 }

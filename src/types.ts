@@ -12,6 +12,8 @@ export interface AgendaNote {
 	id?: string;
 	date: string; // Format: YYYY-MM-DD
 	title: string;
+	isTodo?: boolean;
+	completed?: boolean;
 }
 
 export interface DailyAgendaData {
@@ -23,11 +25,13 @@ export interface MonthlyAgendaSettings {
 	agendaHeading: string;
 	dailyNotesFolder: string;
 	dateFormat: string;
+	dailyTodos: string;
 }
 
 export const DEFAULT_SETTINGS: MonthlyAgendaSettings = {
 	agendaHeading: '## Agenda',
 	dailyNotesFolder: '',
 	dateFormat: 'YYYY-MM-DD',
+	dailyTodos: '',
 };
 

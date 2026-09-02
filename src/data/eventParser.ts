@@ -80,6 +80,10 @@ export function parseAgendaData(
 				});
 			} else if (/^\s*[-*]\s+/.test(line)) {
 				// Bullet line that is not a timed event -> parse as AgendaNote
+				const isTodoMatch = line.match(/^\s*[-*]\s+\[([ xX]?)\]\s/);
+				const isTodo = !!isTodoMatch;
+				const completed = isTodoMatch && isTodoMatch[1] ? isTodoMatch[1].toLowerCase() === 'x' : false;
+
 				let title = line.replace(/^\s*[-*]\s+(?:\[[ xX]?\]\s*)?/, '').trim();
 				if (title.startsWith('**') && title.endsWith('**') && title.length > 4) {
 					title = title.slice(2, -2).trim();
@@ -89,6 +93,8 @@ export function parseAgendaData(
 						id: `${dateStr}-note-${notes.length + 1}-${title}`,
 						date: dateStr,
 						title,
+						isTodo,
+						completed,
 					});
 				}
 			}
@@ -132,6 +138,9 @@ export function formatEventToMarkdown(
 export function formatNoteToMarkdown(
 	note: Omit<AgendaNote, 'date'>,
 ): string {
+	if (note.isTodo) {
+		return `- [${note.completed ? 'x' : ' '}] ${note.title}`;
+	}
 	return `- ${note.title}`;
 }
 
@@ -307,6 +316,88 @@ export function injectNoteIntoAgenda(
 			result += '\n\n';
 		}
 		result += `${heading}\n\n### Notes\n${formattedNoteLine}\n`;
+		return result;
+	}
+}
+
+/**
+ * Injects multiple to-do notes at the beginning of the Notes section.
+ */
+export function injectDailyTodosIntoAgenda(
+	markdown: string,
+	todos: string[],
+	heading: string = '## Agenda',
+): string {
+	if (todos.length === 0) return markdown;
+
+	let currentContent = markdown;
+	// We want to insert them at the beginning of the Notes section.
+	// Easiest approach: format them, find the `### Notes` header, and insert right after it.
+	// If `### Notes` doesn't exist, we can use `injectNoteIntoAgenda` to add the first one (which creates the section),
+	// then insert the rest.
+
+	const formattedTodos = todos.map(t => formatNoteToMarkdown({ title: t, isTodo: true, completed: false }));
+
+	const lines = currentContent.split(/\r?\n/);
+	const normalizedHeading = heading.trim().toLowerCase();
+	const headingLevel = (heading.match(/^#+/) || ['##'])[0].length;
+
+	let headingIndex = -1;
+	let nextHeadingIndex = -1;
+
+	for (let i = 0; i < lines.length; i++) {
+		const line = (lines[i] || '').trim();
+		if (line.startsWith('#')) {
+			const currentLevel = (line.match(/^#+/) || ['#'])[0].length;
+			if (line.toLowerCase() === normalizedHeading) {
+				headingIndex = i;
+			} else if (
+				headingIndex !== -1 &&
+				nextHeadingIndex === -1 &&
+				currentLevel <= headingLevel
+			) {
+				nextHeadingIndex = i;
+				break;
+			}
+		}
+	}
+
+	if (headingIndex !== -1) {
+		const sectionEndIndex = nextHeadingIndex !== -1 ? nextHeadingIndex : lines.length;
+		let notesHeaderIndex = -1;
+
+		for (let i = headingIndex + 1; i < sectionEndIndex; i++) {
+			const line = (lines[i] || '').trim();
+			if (line.startsWith('#') && line.toLowerCase().includes('notes')) {
+				notesHeaderIndex = i;
+				break;
+			}
+		}
+
+		if (notesHeaderIndex !== -1) {
+			// Insert immediately after notes header
+			lines.splice(notesHeaderIndex + 1, 0, ...formattedTodos);
+			return lines.join('\n');
+		} else {
+			// No notes header, insert at end of agenda section
+			let lastContentIndex = headingIndex;
+			for (let i = headingIndex + 1; i < sectionEndIndex; i++) {
+				const line = lines[i];
+				if (line !== undefined && line.trim().length > 0) {
+					lastContentIndex = i;
+				}
+			}
+			const toInsert = ['', '### Notes', ...formattedTodos];
+			lines.splice(lastContentIndex + 1, 0, ...toInsert);
+			return lines.join('\n');
+		}
+	} else {
+		// No agenda heading, append at the end of the document
+		let result = currentContent.trimEnd();
+		if (result.length > 0) {
+			result += '\n\n';
+		}
+		result += `${heading}\n\n### Notes\n${formattedTodos.join('\n')}\n`;
 		return result;
 	}
 }

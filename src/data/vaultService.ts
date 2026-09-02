@@ -4,6 +4,7 @@ import { AgendaNote, CalendarEvent, DailyAgendaData, MonthlyAgendaSettings } fro
 import {
 	injectEventIntoAgenda,
 	injectNoteIntoAgenda,
+	injectDailyTodosIntoAgenda,
 	parseAgendaData,
 	parseAgendaEvents,
 } from './eventParser';
@@ -201,6 +202,44 @@ export async function saveNoteToDailyNote(
 			note,
 			settings.agendaHeading,
 		);
+		await app.vault.create(path, initialContent);
+	}
+}
+
+/**
+ * Synchronizes daily to-dos from settings into the daily note for a given date.
+ */
+export async function syncDailyTodos(
+	app: App,
+	dateStr: string,
+	settings: MonthlyAgendaSettings,
+): Promise<void> {
+	if (!settings.dailyTodos) return;
+	const dailyTodosList = settings.dailyTodos.split('\n').map(t => t.trim()).filter(t => t.length > 0);
+	if (dailyTodosList.length === 0) return;
+
+	const path = getDailyNotePath(app, dateStr, settings);
+	const file = getDailyNoteFile(app, dateStr, settings);
+
+	if (file) {
+		await app.vault.process(file, (content) => {
+			const { notes } = parseAgendaData(content, dateStr, settings.agendaHeading);
+			const existingTitles = new Set(notes.map(n => n.title.toLowerCase()));
+			const missingTodos = dailyTodosList.filter(t => !existingTitles.has(t.toLowerCase()));
+
+			if (missingTodos.length === 0) return content;
+
+			return injectDailyTodosIntoAgenda(content, missingTodos, settings.agendaHeading);
+		});
+	} else {
+		// Ensure folder structure exists
+		const folder = getResolvedDailyNotesFolder(settings, dateStr);
+		if (folder) {
+			await ensureFolderExists(app, folder);
+		}
+
+		// Create file with daily todos
+		const initialContent = injectDailyTodosIntoAgenda('', dailyTodosList, settings.agendaHeading);
 		await app.vault.create(path, initialContent);
 	}
 }

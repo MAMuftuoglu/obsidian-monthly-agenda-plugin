@@ -2,12 +2,19 @@ import { Plugin, WorkspaceLeaf } from 'obsidian';
 import { DEFAULT_SETTINGS, MonthlyAgendaSettings } from './types';
 import { MonthlyAgendaSettingTab } from './settings';
 import { CalendarView, VIEW_TYPE_CALENDAR } from './ui/calendarView';
+import { syncDailyTodos } from './data/vaultService';
 
 export default class MonthlyAgendaPlugin extends Plugin {
 	settings!: MonthlyAgendaSettings;
 
 	async onload() {
 		await this.loadSettings();
+
+		this.app.workspace.onLayoutReady(async () => {
+			const todayObj = new Date();
+			const todayStr = `${todayObj.getFullYear()}-${String(todayObj.getMonth() + 1).padStart(2, '0')}-${String(todayObj.getDate()).padStart(2, '0')}`;
+			await syncDailyTodos(this.app, todayStr, this.settings);
+		});
 
 		// Register custom view
 		this.registerView(
