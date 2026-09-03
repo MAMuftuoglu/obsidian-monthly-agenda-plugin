@@ -1,5 +1,5 @@
 import { ItemView, WorkspaceLeaf, setIcon } from 'obsidian';
-import { getAgendaDataForDate } from '../data/vaultService';
+import { getAgendaDataForDate, syncDailyTodos } from '../data/vaultService';
 import { AgendaNote, CalendarEvent, MonthlyAgendaSettings } from '../types';
 import { MONTH_NAMES, WEEKDAY_NAMES } from '../utils/constants';
 import { AddEventModal } from './addEventModal';
@@ -171,6 +171,9 @@ export class CalendarView extends ItemView {
 		// Current date string for highlighting today
 		const todayObj = new Date();
 		const todayStr = `${todayObj.getFullYear()}-${String(todayObj.getMonth() + 1).padStart(2, '0')}-${String(todayObj.getDate()).padStart(2, '0')}`;
+
+		// Sync daily todos for today when the view is refreshed
+		await syncDailyTodos(this.app, todayStr, this.settings);
 
 		// Current month cells
 		for (let day = 1; day <= totalDays; day++) {

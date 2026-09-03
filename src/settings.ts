@@ -10,22 +10,7 @@ export class MonthlyAgendaSettingTab extends PluginSettingTab {
 		this.plugin = plugin;
 	}
 
-	getSettingDefinitions() {
-		return [
-			{
-				id: 'agendaHeading',
-				name: 'Agenda heading',
-				description:
-					'Markdown heading in daily notes under which agenda events are saved and parsed.',
-			},
-			{
-				id: 'dailyNotesFolder',
-				name: 'Daily notes folder',
-				description:
-					'Folder path where daily notes are stored (leave empty for vault root).',
-			},
-		];
-	}
+
 
 	display(): void {
 		const { containerEl } = this;
